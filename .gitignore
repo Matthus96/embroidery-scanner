@@ -1,14 +1,15 @@
-@'
 # Dependencies
 node_modules/
 
-# Expo
+# Expo generated state and native projects
 .expo/
 dist/
 web-build/
 expo-env.d.ts
+android/
+ios/
 
-# Environment and secrets
+# Environment and signing secrets
 .env
 .env.*
 !.env.example
@@ -18,18 +19,8 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
-
-# Android build files
-android/.gradle/
-android/app/build/
-android/build/
 *.apk
 *.aab
-
-# iOS build files
-ios/Pods/
-ios/build/
-*.xcarchive
 
 # Metro / TypeScript
 .metro-health-check*
@@ -46,4 +37,3 @@ pnpm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
-'@ | Set-Content .gitignore

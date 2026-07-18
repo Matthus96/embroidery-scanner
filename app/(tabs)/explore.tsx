@@ -24,6 +24,7 @@ import {
   submitScannedOrder,
   type MasterOrderLookupResponse,
   type ScanOrderResponse,
+  type DuplicateDaysheetReason,
 } from "../../lib/plannerApi";
 
 type FormState = {
@@ -39,6 +40,22 @@ const EMPTY_FORM: FormState = {
   customer: "",
   quantity: "",
 };
+
+const DUPLICATE_REASONS: {
+  value: DuplicateDaysheetReason;
+  label: string;
+}[] = [
+  { value: "split-allocation", label: "Split allocation" },
+  {
+    value: "combined-customer-orders",
+    label: "Multiple orders for one customer",
+  },
+  {
+    value: "multiple-garment-panels",
+    label: "Multiple panels for one garment",
+  },
+  { value: "error", label: "Error — supervisor review" },
+];
 
 export default function ScannerScreen() {
   const cameraRef = useRef<CameraView | null>(null);
@@ -57,6 +74,8 @@ export default function ScannerScreen() {
   const [masterLookup, setMasterLookup] =
     useState<MasterOrderLookupResponse | null>(null);
   const [mbVerifiedByUser, setMbVerifiedByUser] = useState(false);
+  const [duplicateReason, setDuplicateReason] =
+    useState<DuplicateDaysheetReason | null>(null);
   const [submission, setSubmission] = useState<ScanOrderResponse | null>(null);
   const [error, setError] = useState("");
 
@@ -67,6 +86,7 @@ export default function ScannerScreen() {
     }));
     setMasterLookup(null);
     setMbVerifiedByUser(false);
+    setDuplicateReason(null);
     setSubmission(null);
     setError("");
   }
@@ -82,6 +102,7 @@ export default function ScannerScreen() {
     setWarnings([]);
     setMasterLookup(null);
     setMbVerifiedByUser(false);
+    setDuplicateReason(null);
     setSubmission(null);
 
     try {
@@ -133,6 +154,7 @@ export default function ScannerScreen() {
     setWarnings([]);
     setMasterLookup(null);
     setMbVerifiedByUser(false);
+    setDuplicateReason(null);
     setSubmission(null);
     setError("");
     setTorchEnabled(false);
@@ -174,9 +196,12 @@ export default function ScannerScreen() {
         daysheetNumber: form.daysheetNumber.trim(),
         quantity,
         rawOcrText: recognizedText,
+        styleReference: form.styleReference.trim(),
+        description: form.customer.trim(),
       });
 
       setMasterLookup(response);
+      setDuplicateReason(response.duplicateReason);
     } catch (lookupError) {
       setError(
         lookupError instanceof Error
@@ -229,6 +254,11 @@ export default function ScannerScreen() {
       return;
     }
 
+    if (masterLookup.requiresDuplicateReason && !duplicateReason) {
+      setError("Select why this D/S number is repeated before uploading.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -240,6 +270,7 @@ export default function ScannerScreen() {
         rawOcrText: recognizedText,
         sourceImageUri: photoUri,
         verifiedMbNumber: mbVerifiedByUser ? masterLookup.mbNumber : undefined,
+        duplicateReason: duplicateReason ?? undefined,
       });
 
       setSubmission(response);
@@ -599,6 +630,48 @@ export default function ScannerScreen() {
                         </Text>
                       </View>
                     </Pressable>
+
+                    {masterLookup.requiresDuplicateReason ? (
+                      <View style={styles.duplicateReasonCard}>
+                        <Text style={styles.duplicateReasonTitle}>
+                          Why is this D/S repeated?
+                        </Text>
+                        <Text style={styles.duplicateReasonText}>
+                          {masterLookup.duplicateCount} master orders share this
+                          D/S. The selected reason will be saved as an order
+                          remark.
+                        </Text>
+                        <View style={styles.duplicateReasonList}>
+                          {DUPLICATE_REASONS.map((reason) => {
+                            const selected = duplicateReason === reason.value;
+                            return (
+                              <Pressable
+                                key={reason.value}
+                                style={[
+                                  styles.duplicateReasonOption,
+                                  selected && styles.duplicateReasonOptionActive,
+                                ]}
+                                onPress={() => setDuplicateReason(reason.value)}
+                              >
+                                <View
+                                  style={[
+                                    styles.duplicateReasonRadio,
+                                    selected && styles.duplicateReasonRadioActive,
+                                  ]}
+                                >
+                                  {selected ? (
+                                    <View style={styles.duplicateReasonRadioDot} />
+                                  ) : null}
+                                </View>
+                                <Text style={styles.duplicateReasonOptionText}>
+                                  {reason.label}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    ) : null}
                   </View>
                 )}
 
@@ -606,11 +679,17 @@ export default function ScannerScreen() {
                   style={[
                     styles.primaryButton,
                     styles.uploadButton,
-                    (isSubmitting || submission || !masterLookup) &&
+                    (isSubmitting ||
+                      submission ||
+                      !masterLookup ||
+                      (masterLookup.requiresDuplicateReason && !duplicateReason)) &&
                       styles.disabledButton,
                   ]}
                   disabled={
-                    isSubmitting || Boolean(submission) || !masterLookup
+                    isSubmitting ||
+                    Boolean(submission) ||
+                    !masterLookup ||
+                    (masterLookup.requiresDuplicateReason && !duplicateReason)
                   }
                   onPress={() => {
                     void uploadOrder();
@@ -1292,6 +1371,63 @@ const styles = StyleSheet.create({
     color: "#60766B",
     fontSize: 9,
     lineHeight: 14,
+  },
+  duplicateReasonCard: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: "#FFF8E7",
+    borderWidth: 1,
+    borderColor: "#E7CF8A",
+    borderRadius: 10,
+  },
+  duplicateReasonTitle: {
+    color: "#5E4300",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  duplicateReasonText: {
+    marginTop: 4,
+    color: "#725A1B",
+    fontSize: 10,
+    lineHeight: 15,
+  },
+  duplicateReasonList: { marginTop: 10, gap: 7 },
+  duplicateReasonOption: {
+    minHeight: 43,
+    paddingHorizontal: 11,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#D9CDA9",
+    borderRadius: 9,
+  },
+  duplicateReasonOptionActive: {
+    backgroundColor: "#E9F7EF",
+    borderColor: "#69B98E",
+  },
+  duplicateReasonRadio: {
+    width: 19,
+    height: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#A99C78",
+    borderRadius: 999,
+  },
+  duplicateReasonRadioActive: { borderColor: "#008548" },
+  duplicateReasonRadioDot: {
+    width: 9,
+    height: 9,
+    backgroundColor: "#008548",
+    borderRadius: 999,
+  },
+  duplicateReasonOptionText: {
+    flex: 1,
+    color: "#253348",
+    fontSize: 11,
+    fontWeight: "800",
   },
   uploadButton: { marginTop: 16 },
   textCard: {

@@ -1,7 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function TabLayout() {
+    const insets = useSafeAreaInsets();
+    const bottomInset = Math.max(insets.bottom, 8);
+
     return (
         <Tabs
             screenOptions={{
@@ -9,9 +13,9 @@ export default function TabLayout() {
                 tabBarActiveTintColor: "#00A859",
                 tabBarInactiveTintColor: "#718095",
                 tabBarStyle: {
-                    height: 66,
+                    height: 58 + bottomInset,
                     paddingTop: 7,
-                    paddingBottom: 8,
+                    paddingBottom: bottomInset,
                     backgroundColor: "#FFFFFF",
                     borderTopColor: "#DCE3EB",
                 },
@@ -42,6 +46,34 @@ export default function TabLayout() {
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons
                             name="scan-outline"
+                            size={size}
+                            color={color}
+                        />
+                    ),
+                }}
+            />
+
+            <Tabs.Screen
+                name="operator"
+                options={{
+                    title: "Operator",
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons
+                            name="speedometer-outline"
+                            size={size}
+                            color={color}
+                        />
+                    ),
+                }}
+            />
+
+            <Tabs.Screen
+                name="cleaner"
+                options={{
+                    title: "Cleaner",
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons
+                            name="sparkles-outline"
                             size={size}
                             color={color}
                         />
