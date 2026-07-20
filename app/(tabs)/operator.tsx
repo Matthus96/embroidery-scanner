@@ -107,6 +107,7 @@ export default function OperatorScreen() {
   const [pauseNote, setPauseNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [duplicateLoadAvailable, setDuplicateLoadAvailable] = useState(false);
 
   useEffect(() => {
     const clockTimer = setInterval(() => setNow(Date.now()), 1000);
@@ -174,6 +175,7 @@ export default function OperatorScreen() {
     setSession(machine.activeSession);
     setSessionSyncedAt(Date.now());
     setError("");
+    setDuplicateLoadAvailable(false);
     await SecureStore.setItemAsync(MACHINE_KEY, String(machine.machineId));
   }
 
@@ -194,10 +196,14 @@ export default function OperatorScreen() {
       if (!photo?.uri) throw new Error("The camera did not return an image.");
       const recognized = await recognizeText(photo.uri);
       const text = recognized.text.trim();
-      const parsed = parseDaysheetText(text);
+      const parsed = parseDaysheetText(
+        text,
+        recognized.blocks.flatMap((block) => block.lines),
+      );
       if (!parsed.daysheetNumber) throw new Error("No D/S number was detected. Try again or enter it manually.");
       setDaysheet(parsed.daysheetNumber);
       setRawOcrText(text);
+      setDuplicateLoadAvailable(false);
       setShowCamera(false);
     } catch (captureError) {
       setError(captureError instanceof Error ? captureError.message : String(captureError));
@@ -206,23 +212,30 @@ export default function OperatorScreen() {
     }
   }
 
-  async function loadOrder() {
+  async function loadOrder(loadAnyway = false) {
     if (!machineId) return setError("Pair this tablet with a machine first.");
     if (!daysheet.trim()) return setError("Scan or enter the D/S number.");
     setBusy(true);
     setError("");
+    setDuplicateLoadAvailable(false);
     try {
       await SecureStore.setItemAsync(OPERATOR_KEY, operatorName.trim());
       const loaded = await loadOperatorOrder({
         daysheetNumber: daysheet.trim(), machineId,
         operatorName: operatorName.trim(), rawOcrText,
+        loadAnyway,
       });
       setSession(loaded);
       setSessionSyncedAt(Date.now());
       setDaysheet("");
       setRawOcrText("");
+      setDuplicateLoadAvailable(false);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : String(loadError));
+      const message = loadError instanceof Error ? loadError.message : String(loadError);
+      setError(message);
+      setDuplicateLoadAvailable(
+        message.includes("More than one active assignment matches"),
+      );
     } finally {
       setBusy(false);
     }
@@ -284,10 +297,11 @@ export default function OperatorScreen() {
 
     {!session ? <View style={styles.card}>
       <Text style={styles.cardTitle}>Load assigned order</Text>
-      <TextInput style={styles.input} value={daysheet} onChangeText={setDaysheet} autoCapitalize="characters" placeholder="D/S number, e.g. 23-0528-2627" />
+      <TextInput style={styles.input} value={daysheet} onChangeText={(value) => { setDaysheet(value); setDuplicateLoadAvailable(false); }} autoCapitalize="characters" placeholder="D/S number, e.g. 23-0528-2627" />
       <View style={styles.row}>
         <Pressable style={styles.secondaryButton} onPress={() => void scanDaysheet()}><Text>Scan D/S</Text></Pressable>
         <Pressable style={styles.primaryButton} onPress={() => void loadOrder()} disabled={busy}><Text style={styles.primaryText}>{busy ? "Loading…" : "Load on dashboard"}</Text></Pressable>
+        {duplicateLoadAvailable && <Pressable style={styles.warningButton} onPress={() => void loadOrder(true)} disabled={busy}><Text style={styles.primaryText}>{busy ? "Loading…" : "Load anyway"}</Text></Pressable>}
       </View>
     </View> : <View style={styles.card}>
       <View style={styles.statusRow}><Text style={styles.cardTitle}>{session.machineName}</Text><Text style={styles.status}>{session.status.toUpperCase()}</Text></View>

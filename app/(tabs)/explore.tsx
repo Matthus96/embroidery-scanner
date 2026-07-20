@@ -126,7 +126,10 @@ export default function ScannerScreen() {
         );
       }
 
-      const parsed = parseDaysheetText(text);
+      const parsed = parseDaysheetText(
+        text,
+        result.blocks.flatMap((block) => block.lines),
+      );
 
       setRecognizedText(text);
       setForm({
@@ -390,7 +393,7 @@ export default function ScannerScreen() {
                   <Text style={styles.successMeta}>
                     {submission.mbNumber
                       ? `${submission.mbNumber} · ${submission.stitchCount?.toLocaleString() ?? "No"} stitches`
-                      : `No badge MB · Waiting for review`}
+                      : `No badge MB · Review still required`}
                   </Text>
                   {submission.assignedMachineName ? (
                     <Text style={styles.successMeta}>
@@ -484,8 +487,8 @@ export default function ScannerScreen() {
                       color="#00763F"
                     />
                     <Text style={styles.detectedText}>
-                      All four OCR fields were detected. The badge MB will come
-                      only from the imported master.
+                      All four OCR fields were detected. The planner will match
+                      an imported master or create and auto-assign a new order.
                     </Text>
                   </View>
                 )}
@@ -511,7 +514,9 @@ export default function ScannerScreen() {
                       />
                     )}
                     <Text style={styles.masterLookupButtonText}>
-                      {isLookingUp ? "Checking master…" : "Check Master Record"}
+                      {isLookingUp
+                        ? "Checking planner…"
+                        : "Check Master / New Order"}
                     </Text>
                   </Pressable>
                 ) : (
@@ -526,10 +531,14 @@ export default function ScannerScreen() {
                       </View>
                       <View style={styles.masterHeaderCopy}>
                         <Text style={styles.masterEyebrow}>
-                          MASTER MATCH FOUND
+                          {masterLookup.masterMatched
+                            ? "MASTER MATCH FOUND"
+                            : "NEW ORDER"}
                         </Text>
                         <Text style={styles.masterMb}>
-                          {masterLookup.mbNumber}
+                          {masterLookup.masterMatched
+                            ? masterLookup.mbNumber
+                            : "Auto-assign on upload"}
                         </Text>
                       </View>
                       <View style={styles.masterLockedBadge}>
@@ -538,7 +547,9 @@ export default function ScannerScreen() {
                           size={12}
                           color="#176B48"
                         />
-                        <Text style={styles.masterLockedText}>MASTER</Text>
+                        <Text style={styles.masterLockedText}>
+                          {masterLookup.masterMatched ? "MASTER" : "NEW"}
+                        </Text>
                       </View>
                     </View>
 
@@ -564,72 +575,89 @@ export default function ScannerScreen() {
                       </View>
                     </View>
 
-                    <View
-                      style={[
-                        styles.ocrVerification,
-                        masterLookup.ocrMbDetected
-                          ? styles.ocrVerificationMatched
-                          : styles.ocrVerificationUnseen,
-                      ]}
-                    >
-                      <Ionicons
-                        name={
-                          masterLookup.ocrMbDetected
-                            ? "checkmark-circle"
-                            : "eye-off-outline"
-                        }
-                        size={18}
-                        color={
-                          masterLookup.ocrMbDetected ? "#00763F" : "#725300"
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.ocrVerificationText,
-                          masterLookup.ocrMbDetected
-                            ? styles.ocrVerificationTextMatched
-                            : styles.ocrVerificationTextUnseen,
-                        ]}
-                      >
-                        {masterLookup.ocrMbDetected
-                          ? `OCR also detected ${masterLookup.mbNumber}.`
-                          : `${masterLookup.mbNumber} was not detected in the OCR text.`}
-                      </Text>
-                    </View>
-
-                    <Pressable
-                      style={[
-                        styles.verifyRow,
-                        mbVerifiedByUser && styles.verifyRowActive,
-                      ]}
-                      onPress={() => {
-                        setMbVerifiedByUser((current) => !current);
-                      }}
-                    >
-                      <View
-                        style={[
-                          styles.verifyCheckbox,
-                          mbVerifiedByUser && styles.verifyCheckboxActive,
-                        ]}
-                      >
-                        {mbVerifiedByUser ? (
+                    {masterLookup.masterMatched ? (
+                      <>
+                        <View
+                          style={[
+                            styles.ocrVerification,
+                            masterLookup.ocrMbDetected
+                              ? styles.ocrVerificationMatched
+                              : styles.ocrVerificationUnseen,
+                          ]}
+                        >
                           <Ionicons
-                            name="checkmark"
-                            size={16}
-                            color="#FFFFFF"
+                            name={
+                              masterLookup.ocrMbDetected
+                                ? "checkmark-circle"
+                                : "eye-off-outline"
+                            }
+                            size={18}
+                            color={
+                              masterLookup.ocrMbDetected
+                                ? "#00763F"
+                                : "#725300"
+                            }
                           />
-                        ) : null}
-                      </View>
-                      <View style={styles.verifyCopy}>
-                        <Text style={styles.verifyTitle}>
-                          I visually verified {masterLookup.mbNumber}
+                          <Text
+                            style={[
+                              styles.ocrVerificationText,
+                              masterLookup.ocrMbDetected
+                                ? styles.ocrVerificationTextMatched
+                                : styles.ocrVerificationTextUnseen,
+                            ]}
+                          >
+                            {masterLookup.ocrMbDetected
+                              ? `OCR also detected ${masterLookup.mbNumber}.`
+                              : `${masterLookup.mbNumber} was not detected in the OCR text.`}
+                          </Text>
+                        </View>
+
+                        <Pressable
+                          style={[
+                            styles.verifyRow,
+                            mbVerifiedByUser && styles.verifyRowActive,
+                          ]}
+                          onPress={() => {
+                            setMbVerifiedByUser((current) => !current);
+                          }}
+                        >
+                          <View
+                            style={[
+                              styles.verifyCheckbox,
+                              mbVerifiedByUser && styles.verifyCheckboxActive,
+                            ]}
+                          >
+                            {mbVerifiedByUser ? (
+                              <Ionicons
+                                name="checkmark"
+                                size={16}
+                                color="#FFFFFF"
+                              />
+                            ) : null}
+                          </View>
+                          <View style={styles.verifyCopy}>
+                            <Text style={styles.verifyTitle}>
+                              I visually verified {masterLookup.mbNumber}
+                            </Text>
+                            <Text style={styles.verifyText}>
+                              Optional confirmation against the printed
+                              daysheet. It never overrides the master.
+                            </Text>
+                          </View>
+                        </Pressable>
+                      </>
+                    ) : (
+                      <View style={styles.detectedCard}>
+                        <Ionicons
+                          name="add-circle-outline"
+                          size={19}
+                          color="#00763F"
+                        />
+                        <Text style={styles.detectedText}>
+                          {masterLookup.message}
                         </Text>
-                        <Text style={styles.verifyText}>
-                          Optional confirmation against the printed daysheet. It
-                          never overrides the master.
-                        </Text>
                       </View>
-                    </Pressable>
+                    )}
 
                     {masterLookup.requiresDuplicateReason ? (
                       <View style={styles.duplicateReasonCard}>

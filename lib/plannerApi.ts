@@ -2,6 +2,7 @@ import { loadPlannerConnection } from "./plannerConnection";
 
 export type MasterOrderLookupResponse = {
   success: boolean;
+  masterMatched: boolean;
   daysheetNumber: string;
   mbNumber: string;
   customer: string;
@@ -180,12 +181,14 @@ export function loadOperatorOrder(input: {
   machineId: number;
   operatorName?: string;
   rawOcrText?: string;
+  loadAnyway?: boolean;
 }): Promise<OperatorSession> {
   return plannerRequest<OperatorSession>("/api/operator/load", {
     daysheetNumber: input.daysheetNumber,
     machineId: input.machineId,
     operatorName: input.operatorName ?? null,
     rawOcrText: input.rawOcrText ?? null,
+    loadAnyway: input.loadAnyway ?? false,
   });
 }
 

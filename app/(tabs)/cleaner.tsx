@@ -71,7 +71,10 @@ export default function CleanerScreen() {
       if (!photo?.uri) throw new Error("The camera did not return an image.");
       const recognized = await recognizeText(photo.uri);
       const text = recognized.text.trim();
-      const parsed = parseDaysheetText(text);
+      const parsed = parseDaysheetText(
+        text,
+        recognized.blocks.flatMap((block) => block.lines),
+      );
       if (!parsed.daysheetNumber) throw new Error("No D/S number was detected. Try again or enter it manually.");
       setDaysheet(parsed.daysheetNumber); setRawOcrText(text); setShowCamera(false);
     } catch (captureError) {
